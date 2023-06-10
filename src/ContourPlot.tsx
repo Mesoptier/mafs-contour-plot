@@ -64,12 +64,46 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         [yPaneCoords, resolution, scaleY],
     );
 
+    // Update uniforms
+    useEffect(() => {
+        plotter?.densityLayer.updateTransform(
+            vec
+                .matrixBuilder()
+                .translate(-xPaneRange[0], -yPaneRange[0])
+                .scale(
+                    2.0 / (xPaneRange[1] - xPaneRange[0]),
+                    2.0 / (yPaneRange[1] - yPaneRange[0]),
+                )
+                .translate(-1, -1)
+                .get(),
+        );
+    }, [plotter, xPaneRange, yPaneRange]);
+
+    useEffect(() => {
+        plotter?.densityLayer.updateValueRange(fRange);
+        plotter?.densityLayer.updateGradient(
+            linearGradient(
+                [
+                    [0, '#f11d0e'],
+                    [0.5, 'transparent'],
+                    [1, '#58a6ff'],
+                ],
+                5,
+            ),
+            false,
+        );
+    }, [plotter]);
+
     useEffect(() => {
         if (!plotter) {
             return;
         }
 
+        performance.mark('build mesh');
         const mesh = new Mesh(xCoords, yCoords, f);
+        performance.measure('build mesh', 'build mesh');
+
+        performance.mark('refine mesh');
         mesh.refine(f, ([v1, v2, v3]) => {
             const midPoint = [
                 (v1[0] + v2[0] + v3[0]) / 3,
@@ -84,42 +118,20 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
 
             return absoluteError > 0.1;
         });
+        performance.measure('refine mesh', 'refine mesh');
 
-        plotter.densityLayer.updateTransform(
-            vec
-                .matrixBuilder()
-                .translate(-xPaneRange[0], -yPaneRange[0])
-                .scale(
-                    2.0 / (xPaneRange[1] - xPaneRange[0]),
-                    2.0 / (yPaneRange[1] - yPaneRange[0]),
-                )
-                .translate(-1, -1)
-                .get(),
-        );
-        plotter.densityLayer.updateValueRange(fRange);
-        plotter.densityLayer.updateGradient(
-            linearGradient(
-                [
-                    [0, '#f11d0e'],
-                    [0.5, 'transparent'],
-                    [1, '#58a6ff'],
-                ],
-                5,
-            ),
-            false,
-        );
-
+        performance.mark('draw');
         plotter.draw(mesh);
+        performance.measure('draw', 'draw');
     }, [
         plotter,
         f,
-        fRange,
-        canvasWidth,
-        canvasHeight,
-        xPaneRange,
-        yPaneRange,
         xCoords,
         yCoords,
+
+        // Also redraw when canvas dimensions change
+        canvasWidth,
+        canvasHeight,
     ]);
 
     return (
