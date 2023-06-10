@@ -1,10 +1,12 @@
 import { Interval, usePaneContext, vec } from 'mafs';
-import { type JSX, useEffect, useState } from 'react';
+import { type JSX, useEffect, useMemo, useState } from 'react';
 
-import type { Mesh, Triangle, Vertex } from './plotter/Mesh';
+import { Mesh } from './plotter/Mesh';
 import { Plotter } from './plotter/Plotter';
 import { linearGradient } from './util/gradient';
 import { useTransformPoint } from './util/useTransformPoint';
+import { useScale } from './util/useScale';
+import { subdivideCoords } from './util/subdivideCoords';
 
 interface ContourPlotProps {
     f: (xy: vec.Vector2) => number;
@@ -15,7 +17,7 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
     const { f, fRange } = props;
 
     const transformPoint = useTransformPoint();
-    const { xPaneRange, yPaneRange } = usePaneContext();
+    const { xPaneRange, yPaneRange, xPanes, yPanes } = usePaneContext();
 
     const canvasTopLeft = transformPoint([xPaneRange[0], yPaneRange[1]]);
     const canvasBottomRight = transformPoint([xPaneRange[1], yPaneRange[0]]);
@@ -40,56 +42,34 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         // TODO: Return clean-up function
     }, [canvasElement]);
 
+    const xPaneCoords = useMemo(
+        () => [xPanes[0][0], ...xPanes.map((pane) => pane[1])],
+        [xPanes],
+    );
+    const yPaneCoords = useMemo(
+        () => [yPanes[0][0], ...yPanes.map((pane) => pane[1])],
+        [yPanes],
+    );
+
+    // Maximum number of pixels per subdivision
+    const resolution = 10;
+    const [scaleX, scaleY] = useScale();
+
+    const xCoords = useMemo(
+        () => subdivideCoords(xPaneCoords, resolution / scaleX),
+        [xPaneCoords, resolution, scaleX],
+    );
+    const yCoords = useMemo(
+        () => subdivideCoords(yPaneCoords, resolution / scaleY),
+        [yPaneCoords, resolution, scaleY],
+    );
+
     useEffect(() => {
         if (!plotter) {
             return;
         }
 
-        const mesh: Mesh = {
-            vertices: [],
-            triangles: [],
-        };
-
-        function addTriangle(
-            canvasPoints: [vec.Vector2, vec.Vector2, vec.Vector2],
-        ) {
-            const vertices = canvasPoints.map(([cx, cy]) => {
-                const sx = cx / canvasWidth;
-                const sy = (canvasHeight - cy) / canvasHeight;
-
-                const x = xPaneRange[0] * (1 - sx) + xPaneRange[1] * sx;
-                const y = yPaneRange[0] * (1 - sy) + yPaneRange[1] * sy;
-
-                const value = f([x, y]);
-
-                return [x, y, value] as Vertex;
-            });
-
-            const indices = [
-                mesh.vertices.length,
-                mesh.vertices.length + 1,
-                mesh.vertices.length + 2,
-            ] as Triangle;
-
-            mesh.vertices.push(...vertices);
-            mesh.triangles.push(indices);
-        }
-
-        const resolution = 10;
-        for (let cx = 0; cx < canvasWidth; cx += resolution) {
-            for (let cy = 0; cy < canvasHeight; cy += resolution) {
-                addTriangle([
-                    [cx, cy],
-                    [cx + resolution, cy],
-                    [cx, cy + resolution],
-                ]);
-                addTriangle([
-                    [cx + resolution, cy + resolution],
-                    [cx, cy + resolution],
-                    [cx + resolution, cy],
-                ]);
-            }
-        }
+        const mesh = new Mesh(xCoords, yCoords, f);
 
         plotter.densityLayer.updateTransform(
             vec
@@ -116,7 +96,17 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         );
 
         plotter.draw(mesh);
-    }, [plotter, f, fRange, canvasWidth, canvasHeight, xPaneRange, yPaneRange]);
+    }, [
+        plotter,
+        f,
+        fRange,
+        canvasWidth,
+        canvasHeight,
+        xPaneRange,
+        yPaneRange,
+        xCoords,
+        yCoords,
+    ]);
 
     return (
         <foreignObject

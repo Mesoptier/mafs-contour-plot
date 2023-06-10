@@ -175,8 +175,8 @@ export class DensityLayer {
     }
 
     draw(mesh: Mesh): void {
-        const vertexData = new Float32Array(mesh.vertices.flat());
-        const indexData = new Uint32Array(mesh.triangles.flat());
+        const vertexData = mesh.getVertexData();
+        const indexData = mesh.getIndexData();
 
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
         this.gl.bufferData(
