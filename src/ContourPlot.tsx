@@ -104,11 +104,15 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         );
         plotter.densityLayer.updateValueRange(fRange);
         plotter.densityLayer.updateGradient(
-            linearGradient([
-                [0, 'red'],
-                [0.5, 'transparent'],
-                [1, 'blue'],
-            ]),
+            linearGradient(
+                [
+                    [0, '#f11d0e'],
+                    [0.5, 'transparent'],
+                    [1, '#58a6ff'],
+                ],
+                5,
+            ),
+            false,
         );
 
         plotter.draw(mesh);
