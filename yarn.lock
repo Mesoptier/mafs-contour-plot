@@ -6085,7 +6085,7 @@ __metadata:
     "@storybook/testing-library": 0.0.14-next.2
     "@types/react": ^18.2.9
     "@types/react-dom": ^18.2.4
-    mafs: ^0.17.0
+    mafs: ^0.17.1
     prettier: ^2.8.8
     react: ^18.2.0
     react-dom: ^18.2.0
@@ -6099,9 +6099,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"mafs@npm:^0.17.0":
-  version: 0.17.0
-  resolution: "mafs@npm:0.17.0"
+"mafs@npm:^0.17.1":
+  version: 0.17.1
+  resolution: "mafs@npm:0.17.1"
   dependencies:
     "@react-hook/resize-observer": ^1.2.6
     "@swc/helpers": ^0.4.14
@@ -6113,7 +6113,7 @@ __metadata:
   peerDependencies:
     react: ">=16.8"
     react-dom: ">=16.8"
-  checksum: c0789cf878facb52c5777b472a18ce7f5740fc4879838fecb6fff929005c427752f34372ef0d7e89f4b499fee3e2dafa723828d96d50e466067475295b2a72f3
+  checksum: c5bb0d175e6a773e7dad6848f260a951ec822f5217b4ccff9453a2db79aac52fb80aa3ac7c26983ffdd799852a21506b3e1f3021830c8c430fc50b10491630e7
   languageName: node
   linkType: hard
 
