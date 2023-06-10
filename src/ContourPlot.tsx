@@ -104,19 +104,23 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         performance.measure('build mesh', 'build mesh');
 
         performance.mark('refine mesh');
-        mesh.refine(f, ([v1, v2, v3]) => {
-            const midPoint = [
-                (v1[0] + v2[0] + v3[0]) / 3,
-                (v1[1] + v2[1] + v3[1]) / 3,
-            ] as vec.Vector2;
-            const interpolatedMinValue = (v1[2] + v2[2] + v3[2]) / 3;
-            const actualMinValue = f(midPoint);
+        mesh.refine(f, {
+            minDegree: 1,
+            maxDegree: 5,
+            shouldRefineTriangle: ([v1, v2, v3]) => {
+                const midPoint = [
+                    (v1[0] + v2[0] + v3[0]) / 3,
+                    (v1[1] + v2[1] + v3[1]) / 3,
+                ] as vec.Vector2;
+                const interpolatedMinValue = (v1[2] + v2[2] + v3[2]) / 3;
+                const actualMinValue = f(midPoint);
 
-            const absoluteError = Math.abs(
-                actualMinValue - interpolatedMinValue,
-            );
+                const absoluteError = Math.abs(
+                    actualMinValue - interpolatedMinValue,
+                );
 
-            return absoluteError > 0.1;
+                return absoluteError > 0.01;
+            },
         });
         performance.measure('refine mesh', 'refine mesh');
 

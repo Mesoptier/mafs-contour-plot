@@ -14,6 +14,14 @@ type Triangle = {
     degree: number;
 };
 
+interface RefineOptions {
+    shouldRefineTriangle: (
+        triangleVertices: [Vertex, Vertex, Vertex],
+    ) => boolean;
+    minDegree?: number;
+    maxDegree?: number;
+}
+
 export class Mesh {
     private vertices: Vertex[] = [];
     private triangles: Triangle[] = [];
@@ -96,18 +104,14 @@ export class Mesh {
 
     public refine(
         f: (xy: vec.Vector2) => number,
-        shouldRefineTriangle: (
-            triangleVertices: [Vertex, Vertex, Vertex],
-        ) => boolean,
+        options: RefineOptions,
     ): void {
+        const { shouldRefineTriangle, minDegree = 1, maxDegree = 10 } = options;
+
         type Entry = { triangleIdx: number; triangleDegree: number };
         const queue: Entry[] = Array.from({
             length: this.triangles.length,
         }).map((_, triangleIdx) => ({ triangleIdx, triangleDegree: 0 }));
-
-        // TODO: Add options for min/max degree
-        const minDegree = 1;
-        const maxDegree = 10;
 
         while (queue.length > 0) {
             const entry = queue.shift()!;
