@@ -52,7 +52,7 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
     );
 
     // Maximum number of pixels per subdivision
-    const resolution = 10;
+    const resolution = 100;
     const [scaleX, scaleY] = useScale();
 
     const xCoords = useMemo(
@@ -70,6 +70,20 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         }
 
         const mesh = new Mesh(xCoords, yCoords, f);
+        mesh.refine(f, ([v1, v2, v3]) => {
+            const midPoint = [
+                (v1[0] + v2[0] + v3[0]) / 3,
+                (v1[1] + v2[1] + v3[1]) / 3,
+            ] as vec.Vector2;
+            const interpolatedMinValue = (v1[2] + v2[2] + v3[2]) / 3;
+            const actualMinValue = f(midPoint);
+
+            const absoluteError = Math.abs(
+                actualMinValue - interpolatedMinValue,
+            );
+
+            return absoluteError > 0.1;
+        });
 
         plotter.densityLayer.updateTransform(
             vec
