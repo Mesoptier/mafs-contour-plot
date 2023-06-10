@@ -12,6 +12,7 @@ type Story = StoryObj<typeof ContourPlot>;
 export const Default: Story = {
     args: {
         f: ([x, y]) => Math.cos(x) + Math.cos(y),
+        fRange: [-2, 2],
     },
     render: (props) => (
         <Mafs width={800} height={600} zoom>
