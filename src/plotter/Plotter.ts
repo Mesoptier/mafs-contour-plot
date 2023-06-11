@@ -1,5 +1,4 @@
 import { DensityLayer } from './DensityLayer';
-import { Mesh } from './Mesh';
 
 export const BYTES_PER_FLOAT = 4;
 
@@ -27,12 +26,23 @@ export class Plotter {
         this.densityLayer = new DensityLayer(gl);
     }
 
-    draw(mesh: Mesh) {
+    draw() {
         this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
         this.gl.clearColor(0, 0, 0, 1);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
-        this.densityLayer.draw(mesh);
+        this.densityLayer.draw();
+    }
+
+    private scheduledDrawHandle: number | null = null;
+
+    scheduleDraw() {
+        if (this.scheduledDrawHandle === null) {
+            this.scheduledDrawHandle = window.requestAnimationFrame(() => {
+                this.scheduledDrawHandle = null;
+                this.draw();
+            });
+        }
     }
 }

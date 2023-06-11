@@ -77,6 +77,8 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
                 .translate(-1, -1)
                 .get(),
         );
+
+        plotter?.scheduleDraw();
     }, [plotter, xPaneRange, yPaneRange]);
 
     useEffect(() => {
@@ -92,9 +94,15 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
             ),
             false,
         );
+
+        plotter?.scheduleDraw();
     }, [plotter]);
 
-    const mesh = useMemo(() => {
+    useEffect(() => {
+        if (!plotter) {
+            return;
+        }
+
         performance.mark('build mesh');
         const mesh = new Mesh(xCoords, yCoords, f);
         performance.measure('build mesh', 'build mesh');
@@ -120,20 +128,20 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         });
         performance.measure('refine mesh', 'refine mesh');
 
-        return mesh;
-    }, [f, xCoords, yCoords]);
+        const vertexData = mesh.getVertexData();
+        const indexData = mesh.getIndexData();
+        plotter.densityLayer.updateMesh(vertexData, indexData);
+        plotter.scheduleDraw();
+    }, [plotter, f, xCoords, yCoords]);
 
     useEffect(() => {
         if (!plotter) {
             return;
         }
 
-        performance.mark('draw');
-        plotter.draw(mesh);
-        performance.measure('draw', 'draw');
+        plotter.scheduleDraw();
     }, [
         plotter,
-        mesh,
 
         // Also redraw when canvas dimensions change
         canvasWidth,

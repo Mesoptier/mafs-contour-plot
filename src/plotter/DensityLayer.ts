@@ -7,7 +7,6 @@ import {
     FLOATS_PER_VALUE,
     FLOATS_PER_VERTEX,
 } from './Plotter';
-import { Mesh } from './Mesh';
 
 export class DensityLayer {
     static FRAGMENT_SHADER = `#version 300 es
@@ -53,6 +52,8 @@ export class DensityLayer {
     private indexBuffer: WebGLBuffer;
     private vao: WebGLVertexArrayObject;
     private gradientTexture: WebGLTexture;
+
+    private elementCount = 0;
 
     constructor(private gl: WebGL2RenderingContext) {
         const shaderProgram = initShaderProgram(
@@ -174,10 +175,7 @@ export class DensityLayer {
         );
     }
 
-    draw(mesh: Mesh): void {
-        const vertexData = mesh.getVertexData();
-        const indexData = mesh.getIndexData();
-
+    updateMesh(vertexData: Float32Array, indexData: Uint32Array): void {
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
         this.gl.bufferData(
             this.gl.ARRAY_BUFFER,
@@ -192,6 +190,10 @@ export class DensityLayer {
             this.gl.STATIC_DRAW,
         );
 
+        this.elementCount = indexData.length;
+    }
+
+    draw(): void {
         this.gl.activeTexture(this.gl.TEXTURE0);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
         this.gl.uniform1i(this.programInfo.uniformLocations.gradient, 0);
@@ -199,7 +201,7 @@ export class DensityLayer {
         this.gl.bindVertexArray(this.vao);
         this.gl.drawElements(
             this.gl.TRIANGLES,
-            indexData.length,
+            this.elementCount,
             this.gl.UNSIGNED_INT,
             0,
         );
