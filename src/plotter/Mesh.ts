@@ -127,8 +127,12 @@ export class Mesh {
             length: this.triangleDegrees.length,
         }).map((_, triangleIdx) => ({ triangleIdx, triangleDegree: 0 }));
 
-        while (queue.length > 0) {
-            const entry = queue.shift()!;
+        // Cannot use queue.unshift, because V8 de-optimizes it for large arrays
+        let queueIndex = 0;
+        while (queueIndex < queue.length) {
+            const entry = queue[queueIndex];
+            ++queueIndex;
+
             if (
                 this.triangleDegrees[entry.triangleIdx] !== entry.triangleDegree
             ) {
