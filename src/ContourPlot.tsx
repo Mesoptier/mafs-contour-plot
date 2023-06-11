@@ -102,7 +102,7 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         performance.mark('refine mesh');
         mesh.refine(f, {
             minDegree: 1,
-            maxDegree: 5,
+            maxDegree: 8,
             shouldRefineTriangle: ([v1, v2, v3]) => {
                 const midPoint = [
                     (v1[0] + v2[0] + v3[0]) / 3,

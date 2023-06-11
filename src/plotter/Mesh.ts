@@ -138,12 +138,8 @@ export class Mesh {
 
         while (queue.length > 0) {
             const entry = queue.shift()!;
-            if (entry.triangleDegree > maxDegree) {
-                continue;
-            }
             if (
-                this.getTriangleDegree(entry.triangleIdx) !==
-                entry.triangleDegree
+                this.triangleDegrees[entry.triangleIdx] !== entry.triangleDegree
             ) {
                 continue;
             }
@@ -162,12 +158,16 @@ export class Mesh {
                 f,
                 updatedTriangleIndices,
             );
-            updatedTriangleIndices.forEach((triangleIdx) => {
+            for (const triangleIdx of updatedTriangleIndices) {
+                const triangleDegree = this.triangleDegrees[triangleIdx];
+                if (triangleDegree > maxDegree) {
+                    continue;
+                }
                 queue.push({
                     triangleIdx,
-                    triangleDegree: this.getTriangleDegree(triangleIdx),
+                    triangleDegree,
                 });
-            });
+            }
         }
     }
 
@@ -176,15 +176,9 @@ export class Mesh {
         f: (xy: vec.Vector2) => number,
         updatedTriangleIndices: number[],
     ): [number, number] {
-        const triangleVertices = this.getTriangleVertices(triangleIdx);
-        const edge = [triangleVertices[0], triangleVertices[1]];
-        const midPoint = vec.midpoint(
-            [edge[0][0], edge[0][1]],
-            [edge[1][0], edge[1][1]],
-        );
-        const midValue = f(midPoint);
-
-        let otherTriangleIdx: number | null = null;
+        // Get the index of the triangle connected to the base of the current
+        // triangle (if any)
+        let otherTriangleIdx: number = -1;
         const triangleConnection = this.getTriangleConnection(triangleIdx, 0);
         if (triangleConnection) {
             const [adjacentTriangleIdx, adjacentEdgeIdx] = triangleConnection;
@@ -201,12 +195,19 @@ export class Mesh {
             }
         }
 
-        const newVertexIdx = this.pushVertex([
-            midPoint[0],
-            midPoint[1],
-            midValue,
-        ]);
+        // Build and push the new vertex
+        const triangleVertices = this.getTriangleVertices(triangleIdx);
+        const edge = [triangleVertices[0], triangleVertices[1]];
+        const midPoint = vec.midpoint(
+            [edge[0][0], edge[0][1]],
+            [edge[1][0], edge[1][1]],
+        );
+        const midValue = f(midPoint);
 
+        const newVertexIdx = this.vertices.length / 3;
+        this.vertices.push(midPoint[0], midPoint[1], midValue);
+
+        // Subdivide the first triangle
         const [edge1, edge2] = this.subdivideTriangleBase(
             triangleIdx,
             newVertexIdx,
@@ -215,7 +216,9 @@ export class Mesh {
         updatedTriangleIndices.push(edge1[0]);
         updatedTriangleIndices.push(edge2[0]);
 
-        if (otherTriangleIdx !== null) {
+        // If this triangle is connected at the base to another triangle, we'll
+        // need to subdivide that one as well
+        if (otherTriangleIdx !== -1) {
             const [otherEdge1, otherEdge2] = this.subdivideTriangleBase(
                 otherTriangleIdx,
                 newVertexIdx,
@@ -224,12 +227,16 @@ export class Mesh {
             updatedTriangleIndices.push(otherEdge1[0]);
             updatedTriangleIndices.push(otherEdge2[0]);
 
-            const connectEdges = (e1: TriangleEdge, e2: TriangleEdge) => {
-                this.setTriangleConnection(e1[0], e1[1], e2);
-                this.setTriangleConnection(e2[0], e2[1], e1);
-            };
-            connectEdges(edge1, otherEdge2);
-            connectEdges(edge2, otherEdge1);
+            // Reconnect subdivided base edges of both triangles
+            const edgeIdx1 = edge1[0] * 3 + edge1[1];
+            const otherEdgeIdx2 = otherEdge2[0] * 3 + otherEdge2[1];
+            this.triangleConnections[edgeIdx1] = otherEdgeIdx2;
+            this.triangleConnections[otherEdgeIdx2] = edgeIdx1;
+
+            const edgeIdx2 = edge2[0] * 3 + edge2[1];
+            const otherEdgeIdx1 = otherEdge1[0] * 3 + otherEdge1[1];
+            this.triangleConnections[edgeIdx2] = otherEdgeIdx1;
+            this.triangleConnections[otherEdgeIdx1] = edgeIdx2;
         }
 
         return [edge1[0], edge2[0]];
@@ -245,40 +252,48 @@ export class Mesh {
         //  ╱    T    ╲          ╱  T | T' ╲
         // 1 --------- 0        1 --- m --- 0
 
-        const triangleElements = this.getTriangleElements(triangleIdx);
-        const triangleDegree = this.getTriangleDegree(triangleIdx);
+        const triangleElements = [
+            this.triangleElements[triangleIdx * 3],
+            this.triangleElements[triangleIdx * 3 + 1],
+            this.triangleElements[triangleIdx * 3 + 2],
+        ];
+        const triangleDegree = this.triangleDegrees[triangleIdx];
 
-        const newTriangleIdx = this.pushTriangle({
-            elements: [triangleElements[2], triangleElements[0], newVertexIdx],
-            connectivity: [
-                this.getTriangleConnection(triangleIdx, 2),
-                null, // Connected later
-                [triangleIdx, 1],
-            ],
-            degree: triangleDegree + 1,
-        });
+        // Add the new triangle
+        const newTriangleIdx = this.triangleDegrees.length;
+        this.triangleElements.push(
+            triangleElements[2],
+            triangleElements[0],
+            newVertexIdx,
+        );
+        this.triangleConnections.push(
+            this.triangleConnections[triangleIdx * 3 + 2],
+            -1, // Connected later
+            triangleIdx * 3 + 1,
+        );
+        this.triangleDegrees.push(triangleDegree + 1);
 
-        this.setTriangle(triangleIdx, {
-            elements: [triangleElements[1], triangleElements[2], newVertexIdx],
-            connectivity: [
-                this.getTriangleConnection(triangleIdx, 1),
-                [newTriangleIdx, 2],
-                null, // Connected later
-            ],
-            degree: triangleDegree + 1,
-        });
+        // Update the original triangle
+        this.triangleElements[triangleIdx * 3] = triangleElements[1];
+        this.triangleElements[triangleIdx * 3 + 1] = triangleElements[2];
+        this.triangleElements[triangleIdx * 3 + 2] = newVertexIdx;
 
-        // Fix connectivity
-        [triangleIdx, newTriangleIdx].forEach((triangleIdx) => {
-            const connection = this.getTriangleConnection(triangleIdx, 0);
-            if (connection !== null) {
-                const [otherTriangleIdx, otherEdgeIdx] = connection;
-                this.setTriangleConnection(otherTriangleIdx, otherEdgeIdx, [
-                    triangleIdx,
-                    0,
-                ]);
+        this.triangleConnections[triangleIdx * 3] =
+            this.triangleConnections[triangleIdx * 3 + 1];
+        this.triangleConnections[triangleIdx * 3 + 1] = newTriangleIdx * 3 + 2;
+        this.triangleConnections[triangleIdx * 3 + 2] = -1; // Connected later
+
+        this.triangleDegrees[triangleIdx] = triangleDegree + 1;
+
+        // Re-connect triangles that used to be connected to the non-base edges
+        // of the original triangle to the base edges of the new triangles
+        for (const updatedTriangleIdx of [triangleIdx, newTriangleIdx]) {
+            const edgeIdx = updatedTriangleIdx * 3;
+            const connectedEdgeIdx = this.triangleConnections[edgeIdx];
+            if (connectedEdgeIdx !== -1) {
+                this.triangleConnections[connectedEdgeIdx] = edgeIdx;
             }
-        });
+        }
 
         return [
             [triangleIdx, 2],
@@ -324,31 +339,6 @@ export class Mesh {
         return numberToTriangleConnection(
             this.triangleConnections[triangleIdx * 3 + edgeIdx],
         );
-    }
-
-    public setTriangleConnection(
-        triangleIdx: number,
-        edgeIdx: number,
-        connection: TriangleEdge | null,
-    ): void {
-        this.triangleConnections[triangleIdx * 3 + edgeIdx] =
-            triangleConnectionToNumber(connection);
-    }
-
-    public getTriangleDegree(triangleIdx: number): number {
-        return this.triangleDegrees[triangleIdx];
-    }
-
-    public setTriangle(triangleIdx: number, triangle: Triangle): void {
-        this.triangleElements[triangleIdx * 3] = triangle.elements[0];
-        this.triangleElements[triangleIdx * 3 + 1] = triangle.elements[1];
-        this.triangleElements[triangleIdx * 3 + 2] = triangle.elements[2];
-
-        this.setTriangleConnection(triangleIdx, 0, triangle.connectivity[0]);
-        this.setTriangleConnection(triangleIdx, 1, triangle.connectivity[1]);
-        this.setTriangleConnection(triangleIdx, 2, triangle.connectivity[2]);
-
-        this.triangleDegrees[triangleIdx] = triangle.degree;
     }
 
     public pushTriangle(triangle: Triangle): number {
