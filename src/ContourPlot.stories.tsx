@@ -18,7 +18,7 @@ export const Default: Story = {
         const scale = useMovablePoint([1, 1]);
         const f = useCallback(
             (xy: vec.Vector2) =>
-                Math.cos(xy[0] / scale.point[0]) +
+                Math.cos(xy[0] / scale.point[0] + xy[1] ** 2) +
                 Math.cos(xy[1] / scale.point[1]),
             [scale.point],
         );
