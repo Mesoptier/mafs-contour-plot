@@ -1,5 +1,7 @@
 import { vec } from 'mafs';
 
+const ELEMENTS_PER_VERTEX = 3;
+
 type Vertex = [x: number, y: number, value: number];
 
 type TriangleConnection = [triangleIndex: number, edgeIndex: number];
@@ -23,7 +25,7 @@ interface RefineOptions {
 }
 
 export class Mesh {
-    private vertices: Vertex[] = [];
+    private vertexData: number[] = [];
     private triangles: Triangle[] = [];
 
     constructor(
@@ -36,7 +38,7 @@ export class Mesh {
             for (let yIdx = 0; yIdx < yCoords.length; ++yIdx) {
                 const x = xCoords[xIdx];
                 const y = yCoords[yIdx];
-                this.vertices.push([x, y, f([x, y])] as Vertex);
+                this.insertVertex([x, y, f([x, y])]);
             }
         }
 
@@ -128,7 +130,7 @@ export class Mesh {
                 entry.triangleDegree >= minDegree &&
                 !shouldRefineTriangle(
                     this.triangles[entry.triangleIdx].elements.map(
-                        (vertexIdx) => this.vertices[vertexIdx],
+                        (vertexIdx) => this.getVertex(vertexIdx),
                     ) as [Vertex, Vertex, Vertex],
                 )
             ) {
@@ -158,8 +160,8 @@ export class Mesh {
         const triangle = this.triangles[triangleIdx];
 
         const edge = [
-            this.vertices[triangle.elements[0]],
-            this.vertices[triangle.elements[1]],
+            this.getVertex(triangle.elements[0]),
+            this.getVertex(triangle.elements[1]),
         ];
         const midPoint = vec.midpoint(
             [edge[0][0], edge[0][1]],
@@ -189,8 +191,7 @@ export class Mesh {
                 this.triangles[otherTriangleIdx].degree === triangle.degree,
         );
 
-        const newVertexIdx = this.vertices.length;
-        this.vertices.push([midPoint[0], midPoint[1], midValue]);
+        const newVertexIdx = this.insertVertex([midPoint[0], midPoint[1], midValue]);
 
         const foo = (
             triangleIdx: number,
@@ -270,8 +271,21 @@ export class Mesh {
         return [edge1[0], edge2[0]];
     }
 
+    public getVertex(vertexIdx: number): Vertex {
+        return this.vertexData.slice(
+            vertexIdx * ELEMENTS_PER_VERTEX,
+            (vertexIdx + 1) * ELEMENTS_PER_VERTEX,
+        ) as Vertex;
+    }
+
+    public insertVertex(vertex: Vertex): number {
+        const vertexIdx = this.vertexData.length / ELEMENTS_PER_VERTEX;
+        this.vertexData.push(vertex[0], vertex[1], vertex[2]);
+        return vertexIdx;
+    }
+
     public getVertexData(): Float32Array {
-        return new Float32Array(this.vertices.flat());
+        return new Float32Array(this.vertexData);
     }
 
     public getIndexData(): Uint32Array {
