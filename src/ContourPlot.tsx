@@ -94,11 +94,7 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         );
     }, [plotter]);
 
-    useEffect(() => {
-        if (!plotter) {
-            return;
-        }
-
+    const mesh = useMemo(() => {
         performance.mark('build mesh');
         const mesh = new Mesh(xCoords, yCoords, f);
         performance.measure('build mesh', 'build mesh');
@@ -124,14 +120,20 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         });
         performance.measure('refine mesh', 'refine mesh');
 
+        return mesh;
+    }, [f, xCoords, yCoords]);
+
+    useEffect(() => {
+        if (!plotter) {
+            return;
+        }
+
         performance.mark('draw');
         plotter.draw(mesh);
         performance.measure('draw', 'draw');
     }, [
         plotter,
-        f,
-        xCoords,
-        yCoords,
+        mesh,
 
         // Also redraw when canvas dimensions change
         canvasWidth,
