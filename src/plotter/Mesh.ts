@@ -28,15 +28,6 @@ function triangleConnectionToNumber(c: TriangleEdge | null): number {
     return triangleIdx * 3 + edgeIdx;
 }
 
-function numberToTriangleConnection(n: number): TriangleEdge | null {
-    if (n === -1) {
-        return null;
-    }
-    const triangleIdx = Math.trunc(n / 3);
-    const edgeIdx = n % 3;
-    return [triangleIdx, edgeIdx];
-}
-
 interface RefineOptions {
     shouldRefineTriangle: (triangleVertices: TriangleVertices) => boolean;
     minDegree?: number;
@@ -179,9 +170,11 @@ export class Mesh {
         // Get the index of the triangle connected to the base of the current
         // triangle (if any)
         let otherTriangleIdx: number = -1;
-        const triangleConnection = this.getTriangleConnection(triangleIdx, 0);
-        if (triangleConnection) {
-            const [adjacentTriangleIdx, adjacentEdgeIdx] = triangleConnection;
+        const triangleConnection = this.triangleConnections[triangleIdx * 3];
+        if (triangleConnection !== -1) {
+            const adjacentTriangleIdx = Math.trunc(triangleConnection / 3);
+            const adjacentEdgeIdx = triangleConnection % 3;
+
             if (adjacentEdgeIdx === 0) {
                 otherTriangleIdx = adjacentTriangleIdx;
             } else {
@@ -330,15 +323,6 @@ export class Mesh {
             this.getVertex(vertexIdx2),
             this.getVertex(vertexIdx3),
         ];
-    }
-
-    public getTriangleConnection(
-        triangleIdx: number,
-        edgeIdx: number,
-    ): TriangleEdge | null {
-        return numberToTriangleConnection(
-            this.triangleConnections[triangleIdx * 3 + edgeIdx],
-        );
     }
 
     public pushTriangle(triangle: Triangle): number {
