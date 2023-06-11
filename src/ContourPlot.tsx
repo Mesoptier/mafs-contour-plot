@@ -98,13 +98,15 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         plotter?.scheduleDraw();
     }, [plotter]);
 
+    const mesh = useMemo(() => new Mesh(), []);
+
     useEffect(() => {
         if (!plotter) {
             return;
         }
 
         performance.mark('build mesh');
-        const mesh = new Mesh(xCoords, yCoords, f);
+        mesh.init(xCoords, yCoords, f);
         performance.measure('build mesh', 'build mesh');
 
         performance.mark('refine mesh');
@@ -132,7 +134,7 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         const indexData = mesh.getIndexData();
         plotter.densityLayer.updateMesh(vertexData, indexData);
         plotter.scheduleDraw();
-    }, [plotter, f, xCoords, yCoords]);
+    }, [plotter, mesh, f, xCoords, yCoords]);
 
     useEffect(() => {
         if (!plotter) {

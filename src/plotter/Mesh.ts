@@ -35,22 +35,32 @@ interface RefineOptions {
 }
 
 export class Mesh {
+    private numVertices = 0;
     private vertices: number[] = [];
+
+    private numTriangles = 0;
     private triangleElements: number[] = [];
     private triangleConnections: number[] = [];
     private triangleDegrees: number[] = [];
 
-    constructor(
+    public init(
         xCoords: number[],
         yCoords: number[],
         f: (xy: vec.Vector2) => number,
     ) {
+        this.numVertices = 0;
+        this.numTriangles = 0;
+
         // Build vertices
         for (let xIdx = 0; xIdx < xCoords.length; ++xIdx) {
             for (let yIdx = 0; yIdx < yCoords.length; ++yIdx) {
                 const x = xCoords[xIdx];
                 const y = yCoords[yIdx];
-                this.pushVertex([x, y, f([x, y])]);
+
+                const newVertexIdx = this.numVertices++;
+                this.vertices[newVertexIdx * 3 + 0] = x;
+                this.vertices[newVertexIdx * 3 + 1] = y;
+                this.vertices[newVertexIdx * 3 + 2] = f([x, y]);
             }
         }
 
@@ -124,14 +134,13 @@ export class Mesh {
 
         type Entry = { triangleIdx: number; triangleDegree: number };
         const queue: Entry[] = Array.from({
-            length: this.triangleDegrees.length,
+            length: this.numTriangles,
         }).map((_, triangleIdx) => ({ triangleIdx, triangleDegree: 0 }));
 
         // Cannot use queue.unshift, because V8 de-optimizes it for large arrays
         let queueIndex = 0;
         while (queueIndex < queue.length) {
-            const entry = queue[queueIndex];
-            ++queueIndex;
+            const entry = queue[queueIndex++];
 
             if (
                 this.triangleDegrees[entry.triangleIdx] !== entry.triangleDegree
@@ -193,16 +202,19 @@ export class Mesh {
         }
 
         // Build and push the new vertex
-        const triangleVertices = this.getTriangleVertices(triangleIdx);
-        const edge = [triangleVertices[0], triangleVertices[1]];
+        const vertexIdx1 = this.triangleElements[triangleIdx * 3 + 0];
+        const vertexIdx2 = this.triangleElements[triangleIdx * 3 + 1];
+
         const midPoint = vec.midpoint(
-            [edge[0][0], edge[0][1]],
-            [edge[1][0], edge[1][1]],
+            [this.vertices[vertexIdx1 * 3], this.vertices[vertexIdx1 * 3 + 1]],
+            [this.vertices[vertexIdx2 * 3], this.vertices[vertexIdx2 * 3 + 1]],
         );
         const midValue = f(midPoint);
 
-        const newVertexIdx = this.vertices.length / 3;
-        this.vertices.push(midPoint[0], midPoint[1], midValue);
+        const newVertexIdx = this.numVertices++;
+        this.vertices[newVertexIdx * 3 + 0] = midPoint[0];
+        this.vertices[newVertexIdx * 3 + 1] = midPoint[1];
+        this.vertices[newVertexIdx * 3 + 2] = midValue;
 
         // Subdivide the first triangle
         const [edge1, edge2] = this.subdivideTriangleBase(
@@ -250,32 +262,32 @@ export class Mesh {
         // 1 --------- 0        1 --- m --- 0
 
         const triangleElements = [
-            this.triangleElements[triangleIdx * 3],
+            this.triangleElements[triangleIdx * 3 + 0],
             this.triangleElements[triangleIdx * 3 + 1],
             this.triangleElements[triangleIdx * 3 + 2],
         ];
         const triangleDegree = this.triangleDegrees[triangleIdx];
 
         // Add the new triangle
-        const newTriangleIdx = this.triangleDegrees.length;
-        this.triangleElements.push(
-            triangleElements[2],
-            triangleElements[0],
-            newVertexIdx,
-        );
-        this.triangleConnections.push(
-            this.triangleConnections[triangleIdx * 3 + 2],
-            -1, // Connected later
-            triangleIdx * 3 + 1,
-        );
-        this.triangleDegrees.push(triangleDegree + 1);
+        const newTriangleIdx = this.numTriangles++;
+
+        this.triangleElements[newTriangleIdx * 3 + 0] = triangleElements[2];
+        this.triangleElements[newTriangleIdx * 3 + 1] = triangleElements[0];
+        this.triangleElements[newTriangleIdx * 3 + 2] = newVertexIdx;
+
+        this.triangleConnections[newTriangleIdx * 3 + 0] =
+            this.triangleConnections[triangleIdx * 3 + 2];
+        this.triangleConnections[newTriangleIdx * 3 + 1] = -1; // Connected later
+        this.triangleConnections[newTriangleIdx * 3 + 2] = triangleIdx * 3 + 1;
+
+        this.triangleDegrees[newTriangleIdx] = triangleDegree + 1;
 
         // Update the original triangle
-        this.triangleElements[triangleIdx * 3] = triangleElements[1];
+        this.triangleElements[triangleIdx * 3 + 0] = triangleElements[1];
         this.triangleElements[triangleIdx * 3 + 1] = triangleElements[2];
         this.triangleElements[triangleIdx * 3 + 2] = newVertexIdx;
 
-        this.triangleConnections[triangleIdx * 3] =
+        this.triangleConnections[triangleIdx * 3 + 0] =
             this.triangleConnections[triangleIdx * 3 + 1];
         this.triangleConnections[triangleIdx * 3 + 1] = newTriangleIdx * 3 + 2;
         this.triangleConnections[triangleIdx * 3 + 2] = -1; // Connected later
@@ -299,57 +311,60 @@ export class Mesh {
     }
 
     public getVertex(vertexIdx: number): Vertex {
-        return this.vertices.slice(
-            vertexIdx * 3,
-            (vertexIdx + 1) * 3,
-        ) as Vertex;
-    }
-
-    public pushVertex(vertex: Vertex): number {
-        const vertexIdx = this.vertices.length / 3;
-        this.vertices.push(vertex[0], vertex[1], vertex[2]);
-        return vertexIdx;
+        return [
+            this.vertices[vertexIdx * 3 + 0],
+            this.vertices[vertexIdx * 3 + 1],
+            this.vertices[vertexIdx * 3 + 2],
+        ];
     }
 
     public getTriangleElements(triangleIdx: number): TriangleElements {
         return [
-            this.triangleElements[triangleIdx * 3],
+            this.triangleElements[triangleIdx * 3 + 0],
             this.triangleElements[triangleIdx * 3 + 1],
             this.triangleElements[triangleIdx * 3 + 2],
         ];
     }
 
     public getTriangleVertices(triangleIdx: number): TriangleVertices {
-        const [vertexIdx1, vertexIdx2, vertexIdx3] =
-            this.getTriangleElements(triangleIdx);
+        const triangleElements = this.getTriangleElements(triangleIdx);
         return [
-            this.getVertex(vertexIdx1),
-            this.getVertex(vertexIdx2),
-            this.getVertex(vertexIdx3),
+            this.getVertex(triangleElements[0]),
+            this.getVertex(triangleElements[1]),
+            this.getVertex(triangleElements[2]),
         ];
     }
 
     public pushTriangle(triangle: Triangle): number {
-        const triangleIdx = this.triangleDegrees.length;
-        this.triangleElements.push(
-            triangle.elements[0],
-            triangle.elements[1],
-            triangle.elements[2],
-        );
-        this.triangleConnections.push(
-            triangleConnectionToNumber(triangle.connectivity[0]),
-            triangleConnectionToNumber(triangle.connectivity[1]),
-            triangleConnectionToNumber(triangle.connectivity[2]),
-        );
-        this.triangleDegrees.push(triangle.degree);
+        const triangleIdx = this.numTriangles++;
+
+        this.triangleElements[triangleIdx * 3 + 0] = triangle.elements[0];
+        this.triangleElements[triangleIdx * 3 + 1] = triangle.elements[1];
+        this.triangleElements[triangleIdx * 3 + 2] = triangle.elements[2];
+
+        this.triangleConnections[triangleIdx * 3 + 0] =
+            triangleConnectionToNumber(triangle.connectivity[0]);
+        this.triangleConnections[triangleIdx * 3 + 1] =
+            triangleConnectionToNumber(triangle.connectivity[1]);
+        this.triangleConnections[triangleIdx * 3 + 2] =
+            triangleConnectionToNumber(triangle.connectivity[2]);
+
+        this.triangleDegrees[triangleIdx] = triangle.degree;
+
         return triangleIdx;
     }
 
     public getVertexData(): Float32Array {
-        return new Float32Array(this.vertices);
+        return new Float32Array(this.vertices).subarray(
+            0,
+            this.numVertices * 3,
+        );
     }
 
     public getIndexData(): Uint32Array {
-        return new Uint32Array(this.triangleElements);
+        return new Uint32Array(this.triangleElements).subarray(
+            0,
+            this.numTriangles * 3,
+        );
     }
 }
