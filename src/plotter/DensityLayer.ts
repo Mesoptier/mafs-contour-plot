@@ -146,6 +146,7 @@ export class DensityLayer {
     }
 
     updateGradient(gradient: ImageData, smooth = true): void {
+        this.gl.useProgram(this.programInfo.program);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
         this.gl.texParameteri(
             this.gl.TEXTURE_2D,
@@ -176,6 +177,8 @@ export class DensityLayer {
     }
 
     updateMesh(vertexData: Float32Array, indexData: Uint32Array): void {
+        this.gl.useProgram(this.programInfo.program);
+
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
         this.gl.bufferData(
             this.gl.ARRAY_BUFFER,
@@ -194,6 +197,8 @@ export class DensityLayer {
     }
 
     draw(): void {
+        this.gl.useProgram(this.programInfo.program);
+
         this.gl.activeTexture(this.gl.TEXTURE0);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
         this.gl.uniform1i(this.programInfo.uniformLocations.gradient, 0);

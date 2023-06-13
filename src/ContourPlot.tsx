@@ -7,6 +7,7 @@ import { linearGradient } from './util/gradient';
 import { useTransformPoint } from './util/useTransformPoint';
 import { useScale } from './util/useScale';
 import { subdivideCoords } from './util/subdivideCoords';
+import { analyzeTriangle } from './plotter/isolines';
 
 interface ContourPlotProps {
     f: (xy: vec.Vector2) => number;
@@ -66,17 +67,18 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
 
     // Update uniforms
     useEffect(() => {
-        plotter?.densityLayer.updateTransform(
-            vec
-                .matrixBuilder()
-                .translate(-xPaneRange[0], -yPaneRange[0])
-                .scale(
-                    2.0 / (xPaneRange[1] - xPaneRange[0]),
-                    2.0 / (yPaneRange[1] - yPaneRange[0]),
-                )
-                .translate(-1, -1)
-                .get(),
-        );
+        const transformationMatrix = vec
+            .matrixBuilder()
+            .translate(-xPaneRange[0], -yPaneRange[0])
+            .scale(
+                2.0 / (xPaneRange[1] - xPaneRange[0]),
+                2.0 / (yPaneRange[1] - yPaneRange[0]),
+            )
+            .translate(-1, -1)
+            .get();
+
+        plotter?.densityLayer.updateTransform(transformationMatrix);
+        plotter?.contourLineLayer.updateTransform(transformationMatrix);
 
         plotter?.scheduleDraw();
     }, [plotter, xPaneRange, yPaneRange]);
@@ -105,6 +107,9 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
             return;
         }
 
+        const isolineThresholds = [-6 / 5, -2 / 5, 2 / 5, 6 / 5];
+        const minTotalError = 0.01;
+
         performance.mark('build mesh');
         mesh.init(xCoords, yCoords, f);
         performance.measure('build mesh', 'build mesh');
@@ -112,20 +117,35 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         performance.mark('refine mesh');
         mesh.refine(f, {
             minDegree: 1,
-            maxDegree: 8,
-            shouldRefineTriangle: ([v1, v2, v3]) => {
-                const midPoint = [
-                    (v1[0] + v2[0] + v3[0]) / 3,
-                    (v1[1] + v2[1] + v3[1]) / 3,
-                ] as vec.Vector2;
-                const interpolatedMinValue = (v1[2] + v2[2] + v3[2]) / 3;
-                const actualMinValue = f(midPoint);
+            maxDegree: 10,
+            shouldRefineTriangle: (triangleVertices) => {
+                for (let isolineThreshold of isolineThresholds) {
+                    const isolinePiece = analyzeTriangle(
+                        triangleVertices,
+                        isolineThreshold,
+                    );
+                    if (!isolinePiece) {
+                        continue;
+                    }
 
-                const absoluteError = Math.abs(
-                    actualMinValue - interpolatedMinValue,
-                );
+                    // TODO: Use local gradient to determine the pixel error
 
-                return absoluteError > 0.01;
+                    const totalError =
+                        Math.abs(
+                            f([isolinePiece[0][0], isolinePiece[0][1]]) -
+                                isolineThreshold,
+                        ) +
+                        Math.abs(
+                            f([isolinePiece[1][0], isolinePiece[1][1]]) -
+                                isolineThreshold,
+                        );
+
+                    if (totalError > minTotalError) {
+                        return true;
+                    }
+                }
+
+                return false;
             },
         });
         performance.measure('refine mesh', 'refine mesh');
@@ -133,6 +153,33 @@ export function ContourPlot(props: ContourPlotProps): JSX.Element {
         const vertexData = mesh.getVertexData();
         const indexData = mesh.getIndexData();
         plotter.densityLayer.updateMesh(vertexData, indexData);
+
+        const isolineVertices: number[] = [];
+        for (
+            let triangleIdx = 0;
+            triangleIdx < indexData.length / 3;
+            ++triangleIdx
+        ) {
+            const triangleVertices = mesh.getTriangleVertices(triangleIdx);
+            for (let isolineThreshold of isolineThresholds) {
+                const isolinePiece = analyzeTriangle(
+                    triangleVertices,
+                    isolineThreshold,
+                );
+                if (isolinePiece) {
+                    isolineVertices.push(
+                        isolinePiece[0][0],
+                        isolinePiece[0][1],
+                        isolinePiece[1][0],
+                        isolinePiece[1][1],
+                    );
+                }
+            }
+        }
+        plotter.contourLineLayer.updateBuffer(
+            new Float32Array(isolineVertices),
+        );
+
         plotter.scheduleDraw();
     }, [plotter, mesh, f, xCoords, yCoords]);
 

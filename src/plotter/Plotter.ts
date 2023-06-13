@@ -1,4 +1,5 @@
 import { DensityLayer } from './DensityLayer';
+import { ContourLineLayer } from './ContourLineLayer';
 
 export const BYTES_PER_FLOAT = 4;
 
@@ -11,6 +12,7 @@ export class Plotter {
     private gl: WebGL2RenderingContext;
 
     densityLayer: DensityLayer;
+    contourLineLayer: ContourLineLayer;
 
     constructor(canvasElement: HTMLCanvasElement) {
         const gl = canvasElement.getContext('webgl2', {
@@ -24,6 +26,7 @@ export class Plotter {
         this.gl = gl;
 
         this.densityLayer = new DensityLayer(gl);
+        this.contourLineLayer = new ContourLineLayer(gl);
     }
 
     draw() {
@@ -33,6 +36,7 @@ export class Plotter {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
         this.densityLayer.draw();
+        this.contourLineLayer.draw();
     }
 
     private scheduledDrawHandle: number | null = null;

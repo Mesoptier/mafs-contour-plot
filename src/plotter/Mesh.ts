@@ -1,6 +1,6 @@
 import { vec } from 'mafs';
 
-type Vertex = [x: number, y: number, value: number];
+export type Vertex = [x: number, y: number, value: number];
 
 type TriangleElements = [
     vertexIdx1: number,
